@@ -5,6 +5,10 @@
 #####################################################
 
 from router import Router
+import heapq
+from packet import Packet
+import time
+import json
 
 
 class LSrouter(Router):
@@ -16,12 +20,14 @@ class LSrouter(Router):
     """
 
     def __init__(self, addr, heartbeat_time):
-        Router.__init__(self, addr)  # Initialize base class - DO NOT REMOVE
+        Router.__init__(self, addr)
         self.heartbeat_time = heartbeat_time
         self.last_time = 0
-        # TODO
-        #   add your own class fields and initialization code here
-        pass
+        self.seq_num = 0
+        self.neighbors = {}  # {port: (neighbor, cost)}
+        self.link_state_db = {}  # {router_addr: (seq_num, [(neighbor, cost), ...])}
+        self.forwarding_table = {}  # {dest: port}
+
 
     def handle_packet(self, port, packet):
         """Process incoming packet."""
@@ -40,26 +46,32 @@ class LSrouter(Router):
             pass
 
     def handle_new_link(self, port, endpoint, cost):
-        """Handle new link."""
-        # TODO
-        #   update local data structures and forwarding table
-        #   broadcast the new link state of this router to all neighbors
-        pass
+        self.neighbors[port] = (endpoint, cost)
+        self.seq_num += 1
+        self.link_state_db[self.addr] = (
+            self.seq_num,
+            [(ep, c) for _, (ep, c) in self.neighbors.items()]
+        )
+        print(f"[DEBUG] {self.addr} thêm link tới {endpoint} với cost {cost}")
+        self.flood()
+        self.recompute_paths()
 
     def handle_remove_link(self, port):
-        """Handle removed link."""
-        # TODO
-        #   update local data structures and forwarding table
-        #   broadcast the new link state of this router to all neighbors
-        pass
+        if port in self.neighbors:
+            del self.neighbors[port]
+            self.seq_num += 1
+            self.link_state_db[self.addr] = (
+                self.seq_num,
+                [(ep, c) for _, (ep, c) in self.neighbors.items()]
+            )
+            print(f"[DEBUG] {self.addr} xóa link trên port {port}")
+            self.flood()
+            self.recompute_paths()
 
     def handle_time(self, time_ms):
-        """Handle current time."""
         if time_ms - self.last_time >= self.heartbeat_time:
             self.last_time = time_ms
-            # TODO
-            #   broadcast the link state of this router to all neighbors
-            pass
+            self.flood()
 
     def __repr__(self):
         """Representation for debugging in the network visualizer."""
