@@ -73,8 +73,46 @@ class LSrouter(Router):
             self.last_time = time_ms
             self.flood()
 
+    def recompute_paths(self):
+        print(f"[DEBUG] recompute_paths() được gọi bởi router {self.addr}")
+        graph = {}
+        for router, (_, links) in self.link_state_db.items():
+            graph[router] = {neighbor: cost for neighbor, cost in links}
+
+        dist = {self.addr: 0}
+        prev = {}
+        visited = set()
+        heap = [(0, self.addr)]
+
+        while heap:
+            cost, node = heapq.heappop(heap)
+            if node in visited:
+                continue
+            visited.add(node)
+
+            for neighbor, weight in graph.get(node, {}).items():
+                new_cost = cost + weight
+                if neighbor not in dist or new_cost < dist[neighbor]:
+                    dist[neighbor] = new_cost
+                    prev[neighbor] = node
+                    heapq.heappush(heap, (new_cost, neighbor))
+
+        self.forwarding_table.clear()
+        for dest in dist:
+            if dest == self.addr:
+                continue
+            # Truy vết đường đi để tìm next hop
+            next_hop = dest
+            while prev[next_hop] != self.addr:
+                next_hop = prev[next_hop]
+            for p, (ep, _) in self.neighbors.items():
+                if ep == next_hop:
+                    self.forwarding_table[dest] = p
+                    break
+
+
     def __repr__(self):
         """Representation for debugging in the network visualizer."""
         # TODO
         #   NOTE This method is for your own convenience and will not be graded
-        return f"LSrouter(addr={self.addr})"
+        return f"LSrouter(addr={self.addr}, neighbors={list(self.neighbors.values())})"
